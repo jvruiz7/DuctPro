@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15202B">
+<title>DuctPro Obra</title>
+<link rel="icon" href="icone.png">
+<link rel="apple-touch-icon" href="icone.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEF1F4; --card: #FFFFFF; --text: #15202B; --muted: #566473; --line: #C9D1DA;
+    --accent: #D9772B; --accent-soft: #F6E3D2; --steel: #2F4A63; --ok: #15803D; --err: #B42318;
+    --bar: #15202B; --bar-text: #E7EDF3;
+    --font: "Archivo", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #11171D; --card: #18212A; --text: #E7EDF3; --muted: #9AA8B6; --line: #2C3A47;
+            --accent: #F0924A; --accent-soft: #3A2617; --steel: #8FB3D4; --ok: #40B070; --err: #F87171;
+            --bar: #18212A; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 400 16px/1.45 var(--font); font-stretch: 100%; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--bar); color: var(--bar-text);
+           border-bottom: 3px solid var(--accent); }
+  header b { font-size: 21px; font-weight: 800; font-stretch: 125%; letter-spacing: -.2px; }
+  header b span { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: var(--accent);
+                  font-stretch: 100%; margin-left: 6px; vertical-align: 2px; }
+  header .who { margin-left: auto; font-size: 13px; opacity: .8; text-align: right; }
+  header button { background: none; border: 1px solid #E7EDF355; color: var(--bar-text); font-family: var(--font); border-radius: 6px; padding: 4px 8px; font-size: 12px; }
+  main { padding: 16px; max-width: 520px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  h2 { margin: 0 0 4px; font-size: 22px; font-weight: 800; font-stretch: 125%; letter-spacing: -.2px; }
+  .code, label, .eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 1px; }
+  .code { color: var(--accent); font-size: 13px; font-weight: 600; }
+  .dims { font-family: var(--mono); font-size: 14px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input { width: 100%; font-size: 17px; padding: 12px; border-radius: 8px; border: 1px solid var(--line);
+          background: var(--bg); color: var(--text); font-family: var(--font); }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+  button { font-family: var(--font); cursor: pointer; }
+  button.big { width: 100%; font-size: 18px; font-weight: 700; font-stretch: 112%; padding: 15px; border-radius: 10px; border: 0;
+               background: var(--accent); color: #fff; margin-top: 14px; }
+  button.big.alt { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+  button:disabled { opacity: .5; }
+  .stages { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .stages button { font-size: 16px; padding: 14px 8px; border-radius: 10px; border: 2px solid var(--line);
+                   background: var(--card); color: var(--text); display: flex; align-items: center; gap: 8px; justify-content: center; }
+  .stages button .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .stages button.cur { border-color: var(--steel); font-weight: 700; }
+  .stages button.next { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  .now { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-weight: 600; }
+  .now .dot { width: 14px; height: 14px; border-radius: 50%; }
+  .msg { padding: 12px 14px; border-radius: 8px; margin-bottom: 14px; font-weight: 600; }
+  .msg.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+  .msg.err { background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
+  .msg.info { background: var(--accent-soft); color: var(--text); }
+  video { width: 100%; border-radius: 10px; background: #000; aspect-ratio: 1; object-fit: cover; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row > * { flex: 1; }
+  select { width: 100%; font-size: 16px; padding: 10px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--bg); color: var(--text); }
+  .hidden { display: none !important; }
+  .pending { font-size: 13px; color: var(--muted); text-align: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <svg width="34" height="26" viewBox="100 140 310 225" aria-hidden="true">
+    <path d="M118 165 H298 L393 260 V345 H213 L118 250 Z" fill="none" stroke="#E7EDF3" stroke-width="30" stroke-linejoin="round"/>
+    <path d="M118 257 H392" stroke="#F0924A" stroke-width="30" stroke-dasharray="32 30"/></svg>
+  <b>DuctPro<span>OBRA</span></b>
+  <div class="who" id="who"></div>
+</header>
+<main>
+  <div id="msg" class="msg hidden"></div>
+
+  <!-- login -->
+  <section id="login" class="card hidden">
+    <h2>Entrar</h2>
+    <p class="muted">Use o e-mail e a senha que o escritório cadastrou para você. Só precisa entrar uma vez neste celular.</p>
+    <form id="loginForm">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="pass">Senha</label>
+      <input id="pass" type="password" autocomplete="current-password" required>
+      <button class="big" type="submit">Entrar</button>
+    </form>
+  </section>
+
+  <!-- peça lida -->
+  <section id="piece" class="card hidden">
+    <div class="code" id="pCode"></div>
+    <h2 id="pName"></h2>
+    <div id="pDesc" class="dims"></div>
+    <div class="muted" id="pMeta"></div>
+    <div class="now"><span class="dot" id="pDot"></span><span id="pStage"></span></div>
+    <div class="muted" id="pWhen"></div>
+    <div class="stages" id="stages"></div>
+  </section>
+
+  <!-- câmera -->
+  <section id="scan" class="card hidden">
+    <div class="row">
+      <div>
+        <label for="mode">Ao ler a etiqueta</label>
+        <select id="mode">
+          <option value="ask">Mostrar a peça e escolher a etapa</option>
+          <option value="next">Avançar uma etapa direto</option>
+          <option value="1">Marcar direto como Cortada</option>
+          <option value="2">Marcar direto como Dobrada</option>
+          <option value="3">Marcar direto como Montada</option>
+          <option value="4">Marcar direto como Expedida</option>
+          <option value="5">Marcar direto como Instalada</option>
+        </select>
+      </div>
+    </div>
+    <video id="video" class="hidden" playsinline muted></video>
+    <button class="big" id="camBtn">📷 Ler etiqueta</button>
+    <form id="typeForm" class="row" style="margin-top:10px">
+      <input id="typed" placeholder="ou digite o código (ex.: 3-2)" inputmode="text" autocomplete="off">
+    </form>
+    <div class="pending" id="pending"></div>
+  </section>
+</main>
+
+<script>
+// Preenchido por publicar_pagina_obra.ps1 com os valores de ductcalc/__init__.py (a chave "anon" é pública).
+const SUPABASE_URL = "https://frudyudcxdusmtqwvyde.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZydWR5dWRjeGR1c210cXd2eWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1MjA4OTgsImV4cCI6MjEwODA5Njg5OH0.DBu7z311vOmJD8-0GMwzDtUgSWhyX9R6-d3Jt69l_1s";
+
+const STAGES = ["A cortar", "Cortada", "Dobrada", "Montada", "Expedida", "Instalada"];
+const STAGE_HEX = ["#9AA8B6", "#40B070", "#EAB308", "#8B5CF6", "#06B6D4", "#15803D"];
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+let session = store.get("dpro_session", null);
+let current = null;      // peça mostrada
+let codeUid = null;      // projeto da última etiqueta
+
+function show(id, on) { $(id).classList.toggle("hidden", !on); }
+function message(text, kind = "info") {
+  const m = $("msg"); m.textContent = text; m.className = "msg " + kind; show("msg", !!text);
+  if (kind === "ok" && navigator.vibrate) navigator.vibrate(80);
+  if (kind === "err" && navigator.vibrate) navigator.vibrate([60, 60, 60]);
+}
+
+// "DPRO:ab12cd34:3-2", link com ?c=..., "#3-2" ou "3-2"
+function parseCode(text) {
+  text = (text || "").trim();
+  try { const u = new URL(text); text = u.searchParams.get("c") || text; } catch {}
+  const m = /^(?:DPRO:([0-9a-fA-F]+):)?#?\s*(\d+)\s*-\s*(\d+)$/.exec(text);
+  return m ? { uid: m[1] || null, item: +m[2], copia: +m[3] } : null;
+}
+
+// ---------------------------------------------------------------- Supabase (REST, sem biblioteca)
+async function auth(body, grant) {
+  const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=${grant}`, {
+    method: "POST", headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const code = String(data.error_code || data.error || "");
+    throw new Error(code.includes("invalid") || code.includes("credentials") ? "E-mail ou senha incorretos."
+      : r.status === 429 ? "Muitas tentativas. Aguarde alguns minutos." : `O servidor recusou (${r.status}).`);
+  }
+  const user = data.user || {}, app = user.app_metadata || {}, meta = user.user_metadata || {};
+  if (app.bloqueado) throw new Error("Usuário bloqueado. Fale com o escritório.");
+  return { token: data.access_token, refresh: data.refresh_token, expires: Date.now() + (data.expires_in || 3600) * 1000,
+           email: user.email, nome: meta.nome || user.email };
+}
+
+async function token() {
+  if (!session) throw new Error("login");
+  if (Date.now() > session.expires - 60000) {
+    try { session = await auth({ refresh_token: session.refresh }, "refresh_token"); store.set("dpro_session", session); }
+    catch (e) { if (navigator.onLine) { logout(); throw new Error("login"); } throw e; }
+  }
+  return session.token;
+}
+
+async function rest(path, opts = {}) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...opts, headers: {
+    apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${await token()}`, "Content-Type": "application/json",
+    ...(opts.headers || {}) } });
+  if (r.status === 401) { logout(); throw new Error("login"); }
+  if (!r.ok) throw new Error(r.status === 403 ? "Seu usuário não tem permissão para isso." : `Erro do servidor (${r.status}).`);
+  const raw = await r.text();
+  return raw ? JSON.parse(raw) : null;
+}
+
+// ---------------------------------------------------------------- telas
+function renderWho() {
+  $("who").innerHTML = session ? `${session.nome}<br><button id="out">Sair</button>` : "";
+  if (session) $("out").onclick = () => { if (confirm("Sair deste celular?")) logout(); };
+}
+
+function logout() {
+  session = null; store.del("dpro_session"); renderWho();
+  show("login", true); show("piece", false); show("scan", false);
+}
+
+function renderPiece(p) {
+  current = p;
+  $("pCode").textContent = `#${p.item}-${p.copia}` + (p.sistema ? ` • ${p.sistema}` : "");
+  $("pName").textContent = p.nome || `Peça #${p.item}-${p.copia}`;
+  $("pDesc").textContent = p.descricao || "";
+  $("pMeta").textContent = p.obra ? `Obra: ${p.obra}` : "";
+  $("pDot").style.background = STAGE_HEX[p.etapa];
+  $("pStage").textContent = `Etapa atual: ${STAGES[p.etapa]}`;
+  $("pWhen").textContent = p.atualizado_por ? `por ${p.atualizado_por} em ${new Date(p.atualizado_em).toLocaleString("pt-BR")}` : "";
+  const box = $("stages"); box.innerHTML = "";
+  STAGES.forEach((name, k) => {
+    if (k === 0) return;
+    const b = document.createElement("button");
+    b.innerHTML = `<span class="dot" style="background:${STAGE_HEX[k]}"></span>${name}`;
+    if (k === p.etapa) b.className = "cur";
+    else if (k === p.etapa + 1) b.className = "next";
+    b.onclick = () => {
+      if (k < p.etapa && !confirm(`Voltar a peça para "${name}"?`)) return;
+      register(p, k);
+    };
+    box.appendChild(b);
+  });
+  show("piece", true);
+}
+
+async function load(code) {
+  const rows = await rest(`ductpro_pecas?uid=eq.${encodeURIComponent(code.uid)}&item=eq.${code.item}&copia=eq.${code.copia}&select=*`);
+  return rows && rows[0];
+}
+
+async function openCode(text) {
+  const code = parseCode(text);
+  if (!code) return message("Esta etiqueta não é do DuctPro.", "err");
+  if (!code.uid) code.uid = codeUid;
+  if (!code.uid) return message("Leia a etiqueta pelo QR code (o código digitado precisa de uma etiqueta lida antes).", "err");
+  codeUid = code.uid;
+  history.replaceState(null, "", `?c=DPRO:${code.uid}:${code.item}-${code.copia}`);
+  let p;
+  try { p = await load(code); }
+  catch (e) {
+    if (e.message === "login") return;
+    // sem sinal: registra mesmo assim se o modo for direto
+    const mode = $("mode").value;
+    if (mode !== "ask" && mode !== "next") return queue({ ...code, etapa: +mode }, `#${code.item}-${code.copia}`);
+    return message(navigator.onLine ? e.message : "Sem internet. Escolha \"Marcar direto como...\" para guardar a leitura e enviar depois.", "err");
+  }
+  if (!p) return message(`A peça #${code.item}-${code.copia} ainda não foi enviada pelo escritório (peça ao escritório para sincronizar).`, "err");
+  const mode = $("mode").value;
+  if (mode === "ask") { message(""); return renderPiece(p); }
+  const k = mode === "next" ? Math.min(p.etapa + 1, STAGES.length - 1) : +mode;
+  if (k === p.etapa) { renderPiece(p); return message(`#${p.item}-${p.copia} já está como ${STAGES[k]}.`, "info"); }
+  if (k < p.etapa) { renderPiece(p); return message(`#${p.item}-${p.copia} já está em ${STAGES[p.etapa]} (não voltei a etapa).`, "info"); }
+  register(p, k);
+}
+
+async function register(p, k) {
+  const row = { uid: p.uid, item: p.item, copia: p.copia, etapa: k, usuario: session.nome, lida_em: new Date().toISOString() };
+  try {
+    await rest("ductpro_leituras", { method: "POST", body: JSON.stringify(row), headers: { Prefer: "return=minimal" } });
+    renderPiece({ ...p, etapa: k, atualizado_por: session.nome, atualizado_em: row.lida_em });
+    message(`✔ #${p.item}-${p.copia} ${p.nome || ""}: ${STAGES[k]}`, "ok");
+  } catch (e) {
+    if (e.message === "login") return;
+    if (!navigator.onLine || e instanceof TypeError) return queue(row, `#${p.item}-${p.copia}`);
+    message(e.message, "err");
+  }
+}
+
+// ---------------------------------------------------------------- leituras sem sinal (enviadas depois)
+function queue(row, label) {
+  row = { usuario: session.nome, lida_em: new Date().toISOString(), ...row };
+  const q = store.get("dpro_fila", []); q.push(row); store.set("dpro_fila", q);
+  message(`Sem internet: ${label} → ${STAGES[row.etapa]} guardada no celular e será enviada quando voltar o sinal.`, "info");
+  renderPending();
+}
+function renderPending() {
+  const n = store.get("dpro_fila", []).length;
+  $("pending").textContent = n ? `${n} leitura(s) aguardando internet` : "";
+}
+async function flush() {
+  const q = store.get("dpro_fila", []);
+  if (!q.length || !session) return;
+  try {
+    await rest("ductpro_leituras", { method: "POST", body: JSON.stringify(q), headers: { Prefer: "return=minimal" } });
+    store.set("dpro_fila", []);
+    message(`${q.length} leitura(s) guardada(s) sem sinal foram enviadas.`, "ok");
+  } catch {}
+  renderPending();
+}
+window.addEventListener("online", flush);
+
+// ---------------------------------------------------------------- câmera
+let stream = null, detector = null, jsQR = null, scanning = false;
+async function startCamera() {
+  if (scanning) return stopCamera();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+  } catch {
+    return message("Não consegui abrir a câmera. Permita o uso da câmera ou leia o QR com o app de câmera do celular.", "err");
+  }
+  const v = $("video"); v.srcObject = stream; await v.play(); show("video", true);
+  $("camBtn").textContent = "Parar câmera"; scanning = true;
+  if ("BarcodeDetector" in window) {
+    try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch { detector = null; }
+  }
+  if (!detector && !jsQR) {
+    await new Promise((ok, fail) => { const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"; s.onload = ok; s.onerror = fail; document.head.appendChild(s); })
+      .catch(() => {});
+    jsQR = window.jsQR || null;
+  }
+  const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+  let last = "", lastAt = 0;
+  const tick = async () => {
+    if (!scanning) return;
+    let text = null;
+    try {
+      if (detector) { const r = await detector.detect(v); text = r[0] && r[0].rawValue; }
+      else if (jsQR && v.videoWidth) {
+        canvas.width = v.videoWidth; canvas.height = v.videoHeight; ctx.drawImage(v, 0, 0);
+        const r = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+        text = r && r.data;
+      }
+    } catch {}
+    if (text && (text !== last || Date.now() - lastAt > 4000)) {   // não registra a mesma etiqueta duas vezes seguidas
+      last = text; lastAt = Date.now(); await openCode(text);
+    }
+    setTimeout(tick, 250);
+  };
+  tick();
+}
+function stopCamera() {
+  scanning = false; if (stream) stream.getTracks().forEach(t => t.stop()); stream = null;
+  show("video", false); $("camBtn").textContent = "📷 Ler etiqueta";
+}
+
+// ---------------------------------------------------------------- início
+$("loginForm").onsubmit = async ev => {
+  ev.preventDefault();
+  const btn = ev.submitter; if (btn) btn.disabled = true;
+  try {
+    session = await auth({ email: $("email").value.trim(), password: $("pass").value }, "password");
+    store.set("dpro_session", session); $("pass").value = "";
+    start();
+  } catch (e) { message(e.message || "Sem conexão.", "err"); }
+  finally { if (btn) btn.disabled = false; }
+};
+$("camBtn").onclick = startCamera;
+$("typeForm").onsubmit = ev => { ev.preventDefault(); const t = $("typed").value; $("typed").value = ""; openCode(t); };
+$("mode").value = store.get("dpro_mode", "ask");
+$("mode").onchange = () => store.set("dpro_mode", $("mode").value);
+
+function start() {
+  renderWho(); message("");
+  if (!session) { show("login", true); show("scan", false); return; }
+  show("login", false); show("scan", true); renderPending(); flush();
+  const c = new URLSearchParams(location.search).get("c");
+  if (c) openCode(c);
+}
+
+if (SUPABASE_URL.startsWith("__")) {
+  message("A página ainda não foi configurada pelo escritório (falta o endereço do servidor).", "err");
+} else start();
+</script>
+</body>
+</html>
