@@ -83,7 +83,7 @@
   <!-- login -->
   <section id="login" class="card hidden">
     <h2>Entrar</h2>
-    <p class="muted">Use o e-mail e a senha que o escritório cadastrou para você. Só precisa entrar uma vez neste celular.</p>
+    <p class="muted">Entre com o seu e-mail e senha. Só precisa entrar uma vez neste celular.</p>
     <form id="loginForm">
       <label for="email">E-mail</label>
       <input id="email" type="email" autocomplete="username" required>
@@ -91,6 +91,25 @@
       <input id="pass" type="password" autocomplete="current-password" required>
       <button class="big" type="submit">Entrar</button>
     </form>
+    <button class="big alt" id="toSignup" type="button">Criar conta</button>
+  </section>
+
+  <!-- cadastro -->
+  <section id="signup" class="card hidden">
+    <h2>Criar conta</h2>
+    <p class="muted">Depois de criar, confirme o e-mail que vamos enviar e aguarde o escritório liberar o seu acesso.</p>
+    <form id="signupForm">
+      <label for="sNome">Nome</label>
+      <input id="sNome" autocomplete="name" required>
+      <label for="sEmail">E-mail</label>
+      <input id="sEmail" type="email" autocomplete="username" required>
+      <label for="sPass">Senha (mín. 8 caracteres)</label>
+      <input id="sPass" type="password" autocomplete="new-password" minlength="8" required>
+      <label for="sPass2">Repita a senha</label>
+      <input id="sPass2" type="password" autocomplete="new-password" minlength="8" required>
+      <button class="big" type="submit">Criar conta</button>
+    </form>
+    <button class="big alt" id="toLogin" type="button">Já tenho conta</button>
   </section>
 
   <!-- peça lida -->
@@ -173,6 +192,8 @@ async function auth(body, grant) {
   }
   const user = data.user || {}, app = user.app_metadata || {}, meta = user.user_metadata || {};
   if (app.bloqueado) throw new Error("Usuário bloqueado. Fale com o escritório.");
+  if (!["admin", "operador", "obra"].includes(app.papel))
+    throw new Error("Seu cadastro ainda não foi liberado. Peça ao escritório para liberar o seu acesso.");
   return { token: data.access_token, refresh: data.refresh_token, expires: Date.now() + (data.expires_in || 3600) * 1000,
            email: user.email, nome: meta.nome || user.email };
 }
@@ -354,6 +375,31 @@ $("loginForm").onsubmit = async ev => {
   } catch (e) { message(e.message || "Sem conexão.", "err"); }
   finally { if (btn) btn.disabled = false; }
 };
+$("toSignup").onclick = () => { message(""); show("login", false); show("signup", true); $("sEmail").value = $("email").value; };
+$("toLogin").onclick = () => { message(""); show("signup", false); show("login", true); };
+$("signupForm").onsubmit = async ev => {
+  ev.preventDefault();
+  if ($("sPass").value !== $("sPass2").value) return message("As senhas não são iguais.", "err");
+  const btn = ev.submitter; if (btn) btn.disabled = true;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+      method: "POST", headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: $("sEmail").value.trim(), password: $("sPass").value,
+                             data: { nome: $("sNome").value.trim() } }) });
+    const data = await r.json().catch(() => ({}));
+    const text = String(data.error_code || data.msg || data.message || "").toLowerCase();
+    if (!r.ok) throw new Error(text.includes("already") || text.includes("exists") ? "Este e-mail já tem cadastro."
+      : text.includes("weak") || text.includes("password") ? "Senha fraca: use pelo menos 8 caracteres, com letras e números."
+      : r.status === 429 ? "Muitas tentativas. Aguarde alguns minutos." : `O servidor recusou (${r.status}).`);
+    const user = data.user || data;
+    if (Array.isArray(user.identities) && !user.identities.length) throw new Error("Este e-mail já tem cadastro.");
+    $("email").value = $("sEmail").value.trim();
+    $("sPass").value = $("sPass2").value = "";
+    show("signup", false); show("login", true);
+    message("Cadastro criado. Confirme o e-mail que enviamos e aguarde o escritório liberar o seu acesso.", "ok");
+  } catch (e) { message(e.message || "Sem conexão.", "err"); }
+  finally { if (btn) btn.disabled = false; }
+};
 $("camBtn").onclick = startCamera;
 $("typeForm").onsubmit = ev => { ev.preventDefault(); const t = $("typed").value; $("typed").value = ""; openCode(t); };
 $("mode").value = store.get("dpro_mode", "ask");
@@ -361,7 +407,7 @@ $("mode").onchange = () => store.set("dpro_mode", $("mode").value);
 
 function start() {
   renderWho(); message("");
-  if (!session) { show("login", true); show("scan", false); return; }
+  if (!session) { show("login", true); show("signup", false); show("scan", false); return; }
   show("login", false); show("scan", true); renderPending(); flush();
   const c = new URLSearchParams(location.search).get("c");
   if (c) openCode(c);
