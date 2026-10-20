@@ -35,6 +35,9 @@
   main { padding: 16px; max-width: 520px; margin: 0 auto; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
   h2 { margin: 0 0 4px; font-size: 22px; font-weight: 800; font-stretch: 125%; letter-spacing: -.2px; }
+  label.check { display: flex; align-items: center; gap: 8px; font-family: var(--font); text-transform: none;
+                letter-spacing: 0; font-size: 15px; color: var(--text); margin-top: 12px; }
+  label.check input { width: 20px; height: 20px; accent-color: var(--accent); }
   .code, label, .eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 1px; }
   .code { color: var(--accent); font-size: 13px; font-weight: 600; }
   .dims { font-family: var(--mono); font-size: 14px; }
@@ -89,6 +92,7 @@
       <input id="email" type="email" autocomplete="username" required>
       <label for="pass">Senha</label>
       <input id="pass" type="password" autocomplete="current-password" required>
+      <label class="check"><input type="checkbox" data-show="pass"> Mostrar a senha</label>
       <button class="big" type="submit">Entrar</button>
     </form>
     <button class="big alt" id="toSignup" type="button">Criar conta</button>
@@ -107,6 +111,7 @@
       <input id="sPass" type="password" autocomplete="new-password" minlength="8" required>
       <label for="sPass2">Repita a senha</label>
       <input id="sPass2" type="password" autocomplete="new-password" minlength="8" required>
+      <label class="check"><input type="checkbox" data-show="sPass sPass2"> Mostrar a senha</label>
       <button class="big" type="submit">Criar conta</button>
     </form>
     <button class="big alt" id="toLogin" type="button">Já tenho conta</button>
@@ -375,6 +380,8 @@ $("loginForm").onsubmit = async ev => {
   } catch (e) { message(e.message || "Sem conexão.", "err"); }
   finally { if (btn) btn.disabled = false; }
 };
+document.querySelectorAll("[data-show]").forEach(cb => cb.onchange = () =>
+  cb.dataset.show.split(" ").forEach(id => $(id).type = cb.checked ? "text" : "password"));
 $("toSignup").onclick = () => { message(""); show("login", false); show("signup", true); $("sEmail").value = $("email").value; };
 $("toLogin").onclick = () => { message(""); show("signup", false); show("login", true); };
 $("signupForm").onsubmit = async ev => {
