@@ -63,7 +63,17 @@
   .msg.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
   .msg.err { background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
   .msg.info { background: var(--accent-soft); color: var(--text); }
-  video { width: 100%; border-radius: 10px; background: #000; aspect-ratio: 1; object-fit: cover; }
+  .viewer { position: relative; margin-top: 14px; border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 1; }
+  .viewer video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .viewer .aim { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+  .viewer .aim span { width: 62%; aspect-ratio: 1; border-radius: 12px; box-shadow: 0 0 0 999px rgba(17, 23, 29, .45);
+                      outline: 3px solid var(--accent); outline-offset: -3px; }
+  .viewer.hit .aim span { outline-color: #40B070; }
+  .viewer .hint { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; color: #E7EDF3;
+                  font: 600 13px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 1px; }
+  .viewer .torch { position: absolute; top: 10px; right: 10px; width: 46px; height: 46px; border-radius: 50%; border: 0;
+                   background: rgba(17, 23, 29, .6); font-size: 22px; }
+  .viewer .torch.on { background: var(--accent); }
   .row { display: flex; gap: 10px; align-items: center; }
   .row > * { flex: 1; }
   select { width: 100%; font-size: 16px; padding: 10px; border-radius: 8px; border: 1px solid var(--line);
@@ -144,8 +154,15 @@
         </select>
       </div>
     </div>
-    <video id="video" class="hidden" playsinline muted></video>
-    <button class="big" id="camBtn">📷 Ler etiqueta</button>
+    <div id="viewer" class="viewer hidden">
+      <video id="video" playsinline muted autoplay></video>
+      <div class="aim"><span></span></div>
+      <div class="hint" id="camHint">Aponte para o QR da etiqueta</div>
+      <button type="button" id="torchBtn" class="torch hidden" aria-label="Lanterna">🔦</button>
+    </div>
+    <button class="big" id="camBtn">📷 Ler etiqueta com a câmera</button>
+    <button class="big alt" id="photoBtn" type="button">🖼 Fotografar a etiqueta</button>
+    <input id="photoInput" type="file" accept="image/*" capture="environment" class="hidden">
     <form id="typeForm" class="row" style="margin-top:10px">
       <input id="typed" placeholder="ou digite o código (ex.: 3-2)" inputmode="text" autocomplete="off">
     </form>
@@ -180,9 +197,11 @@ function message(text, kind = "info") {
 // "DPRO:ab12cd34:3-2", link com ?c=..., "#3-2" ou "3-2"
 function parseCode(text) {
   text = (text || "").trim();
-  try { const u = new URL(text); text = u.searchParams.get("c") || text; } catch {}
-  const m = /^(?:DPRO:([0-9a-fA-F]+):)?#?\s*(\d+)\s*-\s*(\d+)$/.exec(text);
-  return m ? { uid: m[1] || null, item: +m[2], copia: +m[3] } : null;
+  try { text = decodeURIComponent(text); } catch {}
+  let m = /^#?\s*(\d+)\s*-\s*(\d+)$/.exec(text);
+  if (m) return { uid: null, item: +m[1], copia: +m[2] };
+  m = /DPRO[^0-9A-Za-z]+([0-9A-Fa-f]{6,})[^0-9A-Za-z]+(\d+)[^0-9A-Za-z]+(\d+)/i.exec(text);   // link ou código
+  return m ? { uid: m[1].toLowerCase(), item: +m[2], copia: +m[3] } : null;
 }
 
 // ---------------------------------------------------------------- Supabase (REST, sem biblioteca)
@@ -324,50 +343,141 @@ async function flush() {
 }
 window.addEventListener("online", flush);
 
-// ---------------------------------------------------------------- câmera
-let stream = null, detector = null, jsQR = null, scanning = false;
+// ---------------------------------------------------------------- leitura do QR (câmera ao vivo ou foto)
+// Decodificador: o do próprio celular (BarcodeDetector) quando ele lê QR; senão a biblioteca jsQR.
+let stream = null, scanning = false, busy = false;
+const work = document.createElement("canvas"), wctx = work.getContext("2d", { willReadFrequently: true });
+let nativeDetector;   // undefined = ainda não testado; null = não tem
+
+async function getNative() {
+  if (nativeDetector !== undefined) return nativeDetector;
+  nativeDetector = null;
+  try {
+    if ("BarcodeDetector" in window) {
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if (formats.includes("qr_code")) nativeDetector = new BarcodeDetector({ formats: ["qr_code"] });
+    }
+  } catch {}
+  return nativeDetector;
+}
+function loadJsQR() {
+  if (window.jsQR) return Promise.resolve(window.jsQR);
+  return new Promise(ok => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+    s.onload = () => ok(window.jsQR || null); s.onerror = () => ok(null);
+    document.head.appendChild(s);
+  });
+}
+
+// Lê um QR de um vídeo/imagem: tenta o quadrado central (onde a pessoa mira) e, se não achar, a imagem toda.
+async function decode(source, w, h) {
+  const det = await getNative();
+  if (det) {
+    try { const r = await det.detect(source); if (r.length) return r[0].rawValue; } catch { nativeDetector = null; }
+  }
+  const qr = await loadJsQR();
+  if (!qr || !w || !h) return null;
+  const side = Math.min(w, h);
+  const tries = [[(w - side * .7) / 2, (h - side * .7) / 2, side * .7, side * .7], [0, 0, w, h]];
+  for (const [sx, sy, sw, sh] of tries) {
+    const scale = Math.min(1, 900 / Math.max(sw, sh));        // reduz para ficar rápido no celular
+    work.width = Math.round(sw * scale); work.height = Math.round(sh * scale);
+    wctx.drawImage(source, sx, sy, sw, sh, 0, 0, work.width, work.height);
+    const img = wctx.getImageData(0, 0, work.width, work.height);
+    const r = qr(img.data, img.width, img.height, { inversionAttempts: "attemptBoth" });
+    if (r && r.data) return r.data;
+  }
+  return null;
+}
+
+function beep() {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = 1100; g.gain.value = .08; o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + .09);
+  } catch {}
+}
+
+async function handleRead(text) {
+  const code = parseCode(text);
+  if (!code) { $("camHint").textContent = "Este QR não é de uma etiqueta DuctPro"; return false; }
+  beep(); $("viewer").classList.add("hit"); setTimeout(() => $("viewer").classList.remove("hit"), 600);
+  await openCode(text);
+  return true;
+}
+
 async function startCamera() {
   if (scanning) return stopCamera();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+    return message("Este navegador não libera a câmera. Use \"Fotografar a etiqueta\" ou o app de câmera do celular.", "err");
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-  } catch {
-    return message("Não consegui abrir a câmera. Permita o uso da câmera ou leia o QR com o app de câmera do celular.", "err");
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: {
+      facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+  } catch (e) {
+    const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+    return message(denied ? "A câmera foi bloqueada. Toque no cadeado ao lado do endereço, permita a câmera e tente de novo."
+                          : "Não consegui abrir a câmera. Use \"Fotografar a etiqueta\" ou o app de câmera do celular.", "err");
   }
-  const v = $("video"); v.srcObject = stream; await v.play(); show("video", true);
-  $("camBtn").textContent = "Parar câmera"; scanning = true;
-  if ("BarcodeDetector" in window) {
-    try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch { detector = null; }
-  }
-  if (!detector && !jsQR) {
-    await new Promise((ok, fail) => { const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"; s.onload = ok; s.onerror = fail; document.head.appendChild(s); })
-      .catch(() => {});
-    jsQR = window.jsQR || null;
-  }
-  const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
-  let last = "", lastAt = 0;
+  const track = stream.getVideoTracks()[0];
+  try {   // foco contínuo (quando o celular permite)
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if ((caps.focusMode || []).includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+    show("torchBtn", !!caps.torch);
+  } catch {}
+  const v = $("video"); v.srcObject = stream;
+  try { await v.play(); } catch {}
+  show("viewer", true); $("camHint").textContent = "Aponte para o QR da etiqueta";
+  $("camBtn").textContent = "■ Parar câmera"; scanning = true;
+  $("viewer").scrollIntoView({ behavior: "smooth", block: "center" });
   const tick = async () => {
     if (!scanning) return;
-    let text = null;
-    try {
-      if (detector) { const r = await detector.detect(v); text = r[0] && r[0].rawValue; }
-      else if (jsQR && v.videoWidth) {
-        canvas.width = v.videoWidth; canvas.height = v.videoHeight; ctx.drawImage(v, 0, 0);
-        const r = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-        text = r && r.data;
-      }
-    } catch {}
-    if (text && (text !== last || Date.now() - lastAt > 4000)) {   // não registra a mesma etiqueta duas vezes seguidas
-      last = text; lastAt = Date.now(); await openCode(text);
+    if (!busy && v.readyState >= 2) {
+      busy = true;
+      try {
+        const text = await decode(v, v.videoWidth, v.videoHeight);
+        if (text) {
+          const code = parseCode(text);
+          if (code) {   // uma etiqueta por vez: leu, fecha a câmera e mostra o resultado
+            stopCamera();
+            $("camBtn").textContent = "📷 Ler a próxima etiqueta";
+            await handleRead(text);
+            $("piece").classList.contains("hidden") ? window.scrollTo({ top: 0, behavior: "smooth" })
+                                                    : $("piece").scrollIntoView({ behavior: "smooth" });
+          } else $("camHint").textContent = "Este QR não é de uma etiqueta DuctPro";
+        }
+      } finally { busy = false; }
     }
-    setTimeout(tick, 250);
+    setTimeout(tick, 180);
   };
   tick();
 }
 function stopCamera() {
   scanning = false; if (stream) stream.getTracks().forEach(t => t.stop()); stream = null;
-  show("video", false); $("camBtn").textContent = "📷 Ler etiqueta";
+  show("viewer", false); show("torchBtn", false); $("torchBtn").classList.remove("on");
+  $("camBtn").textContent = "📷 Ler etiqueta com a câmera";
 }
+$("torchBtn").onclick = async () => {
+  const track = stream && stream.getVideoTracks()[0];
+  if (!track) return;
+  const on = !$("torchBtn").classList.contains("on");
+  try { await track.applyConstraints({ advanced: [{ torch: on }] }); $("torchBtn").classList.toggle("on", on); } catch {}
+};
+
+// Foto da etiqueta (funciona em qualquer celular, mesmo sem câmera ao vivo no navegador)
+$("photoBtn").onclick = () => { if (scanning) stopCamera(); $("photoInput").value = ""; $("photoInput").click(); };
+$("photoInput").onchange = async () => {
+  const file = $("photoInput").files[0];
+  if (!file) return;
+  message("Lendo a foto...", "info");
+  try {
+    const bmp = await createImageBitmap(file);
+    const text = await decode(bmp, bmp.width, bmp.height);
+    if (!text) return message("Não achei o QR na foto. Chegue mais perto, com luz, e deixe o QR inteiro e reto.", "err");
+
+    await handleRead(text);
+  } catch { message("Não consegui abrir a foto. Tente de novo.", "err"); }
+};
+document.addEventListener("visibilitychange", () => { if (document.hidden && scanning) stopCamera(); });
 
 // ---------------------------------------------------------------- início
 $("loginForm").onsubmit = async ev => {
