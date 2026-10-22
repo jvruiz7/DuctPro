@@ -63,6 +63,10 @@
   .msg.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
   .msg.err { background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
   .msg.info { background: var(--accent-soft); color: var(--text); }
+  .klist { margin-top: 12px; border-top: 1px solid var(--line); }
+  .krow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .krow span:nth-child(2) { flex: 1; }
+  .krow .dot { width: 12px; height: 12px; border-radius: 50%; }
   .viewer { position: relative; margin-top: 14px; border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 1; }
   .viewer video { width: 100%; height: 100%; object-fit: cover; display: block; }
   .viewer .aim { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
@@ -136,6 +140,15 @@
     <div class="now"><span class="dot" id="pDot"></span><span id="pStage"></span></div>
     <div class="muted" id="pWhen"></div>
     <div class="stages" id="stages"></div>
+  </section>
+
+  <!-- pacote lido (romaneio) -->
+  <section id="package" class="card hidden">
+    <div class="code" id="kCode"></div>
+    <h2 id="kName"></h2>
+    <div class="muted" id="kMeta"></div>
+    <div class="stages" id="kStages"></div>
+    <div id="kList" class="klist"></div>
   </section>
 
   <!-- câmera -->
@@ -254,6 +267,7 @@ function logout() {
 
 function renderPiece(p) {
   current = p;
+  show("package", false);
   $("pCode").textContent = `#${p.item}-${p.copia}` + (p.sistema ? ` • ${p.sistema}` : "");
   $("pName").textContent = p.nome || `Peça #${p.item}-${p.copia}`;
   $("pDesc").textContent = p.descricao || "";
@@ -398,7 +412,75 @@ function beep() {
   } catch {}
 }
 
+// ---------------------------------------------------------------- pacote (romaneio): registra todas as peças de uma vez
+function parsePackage(text) {
+  text = (text || "").trim();
+  let params = null;
+  try { params = new URL(text).searchParams; } catch {}
+  const p = params ? params.get("p") : text;
+  const m = /DPRO[^0-9A-Za-z]+([0-9A-Fa-f]{6,})[^0-9A-Za-z]+(P\d+)\b/i.exec(decodeURIComponent(p || ""));
+  if (!m) return null;
+  const units = ((params && params.get("u")) || "").split(".").filter(Boolean).map(u => u.split("-").map(Number));
+  return { uid: m[1].toLowerCase(), id: m[2].toUpperCase(), nome: (params && params.get("n")) || m[2], units };
+}
+
+async function openPackage(pk) {
+  show("piece", false);
+  history.replaceState(null, "", `?p=DPRO:${pk.uid}:${pk.id}&n=${encodeURIComponent(pk.nome)}&u=${pk.units.map(u => u.join("-")).join(".")}`);
+  if (!pk.units.length) return message("Este QR de pacote não traz a lista de peças. Gere o romaneio de novo no DuctPro.", "err");
+  let rows = [];
+  try { rows = await rest(`ductpro_pecas?uid=eq.${encodeURIComponent(pk.uid)}&select=*`) || []; }
+  catch (e) { if (e.message !== "login") message(e.message, "err"); return; }
+  const want = new Set(pk.units.map(u => u.join("-")));
+  const pieces = rows.filter(r => want.has(`${r.item}-${r.copia}`));
+  renderPackage(pk, pieces);
+}
+
+function renderPackage(pk, pieces) {
+  $("kCode").textContent = `Pacote ${pk.id} • ${pk.units.length} peça(s)`;
+  $("kName").textContent = pk.nome;
+  const missing = pk.units.length - pieces.length;
+  const low = pieces.length ? Math.min(...pieces.map(p => p.etapa)) : 0;
+  $("kMeta").textContent = (missing ? `${missing} peça(s) ainda não enviadas pelo escritório. ` : "") +
+    `Etapa mais atrasada: ${STAGES[low]}`;
+  const box = $("kStages"); box.innerHTML = "";
+  STAGES.forEach((name, k) => {
+    if (k === 0) return;
+    const b = document.createElement("button");
+    b.innerHTML = `<span class="dot" style="background:${STAGE_HEX[k]}"></span>Todas: ${name}`;
+    if (k === low + 1) b.className = "next";
+    b.onclick = () => registerPackage(pk, pieces, k);
+    box.appendChild(b);
+  });
+  $("kList").innerHTML = pieces.map(p => `<div class="krow"><span class="code">#${p.item}-${p.copia}</span>` +
+    `<span>${(p.nome || "").replace(/</g, "&lt;")}</span><span class="dot" style="background:${STAGE_HEX[p.etapa]}"></span></div>`).join("");
+  show("package", true);
+  $("package").scrollIntoView({ behavior: "smooth" });
+}
+
+async function registerPackage(pk, pieces, k) {
+  if (!pieces.length) return;
+  if (!confirm(`Registrar as ${pieces.length} peça(s) do pacote como "${STAGES[k]}"?`)) return;
+  const now = new Date().toISOString();
+  const rows = pieces.map(p => ({ uid: pk.uid, item: p.item, copia: p.copia, etapa: k, usuario: session.nome, lida_em: now }));
+  try {
+    await rest("ductpro_leituras", { method: "POST", body: JSON.stringify(rows), headers: { Prefer: "return=minimal" } });
+    pieces.forEach(p => { p.etapa = k; });
+    renderPackage(pk, pieces);
+    message(`✔ Pacote ${pk.id}: ${pieces.length} peça(s) → ${STAGES[k]}`, "ok");
+  } catch (e) {
+    if (e.message === "login") return;
+    if (!navigator.onLine || e instanceof TypeError) {
+      const q = store.get("dpro_fila", []); q.push(...rows); store.set("dpro_fila", q); renderPending();
+      return message(`Sem internet: o pacote ${pk.id} (${rows.length} peças) foi guardado no celular e será enviado depois.`, "info");
+    }
+    message(e.message, "err");
+  }
+}
+
 async function handleRead(text) {
+  const pk = parsePackage(text);
+  if (pk) { beep(); await openPackage(pk); return true; }
   const code = parseCode(text);
   if (!code) { $("camHint").textContent = "Este QR não é de uma etiqueta DuctPro"; return false; }
   beep(); $("viewer").classList.add("hit"); setTimeout(() => $("viewer").classList.remove("hit"), 600);
@@ -436,8 +518,8 @@ async function startCamera() {
       try {
         const text = await decode(v, v.videoWidth, v.videoHeight);
         if (text) {
-          const code = parseCode(text);
-          if (code) {   // uma etiqueta por vez: leu, fecha a câmera e mostra o resultado
+          const code = parseCode(text) || parsePackage(text);
+          if (code) {   // uma etiqueta (ou um pacote) por vez: leu, fecha a câmera e mostra o resultado
             stopCamera();
             $("camBtn").textContent = "📷 Ler a próxima etiqueta";
             await handleRead(text);
@@ -526,6 +608,8 @@ function start() {
   renderWho(); message("");
   if (!session) { show("login", true); show("signup", false); show("scan", false); return; }
   show("login", false); show("scan", true); renderPending(); flush();
+  const pk = parsePackage(location.href);
+  if (pk) return openPackage(pk);
   const c = new URLSearchParams(location.search).get("c");
   if (c) openCode(c);
 }
